@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 2 argments must provided
+# 2 arguments must provided
 if [ $# -lt 2 ]; then
     echo "Error. Both the file path and string must be provided"
     exit 1
