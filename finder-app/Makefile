@@ -1,8 +1,8 @@
 BINARY = writer
 
-CC ?= $(CROSS_COMPILE)gcc # Conditional assign if unset
-OPT = -O0
-CFLAGS = -Wall -Wextra -g $(OPT) 
+CC=$(CROSS_COMPILE)gcc
+OPT=-O0
+CFLAGS=-Wall -Wextra -g $(OPT)
 
 OBJECTS = writer.o
 
