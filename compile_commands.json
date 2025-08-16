@@ -1,0 +1,38 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-Iinclude",
+      "-O0",
+      "-std=gnu99",
+      "-Wall",
+      "-Wextra",
+      "-g",
+      "-c",
+      "-o",
+      "build/main.o",
+      "src/main.c"
+    ],
+    "directory": "/home/michael/Documents/Coursera/Linux-System-Programming-Buildroot/sandbox",
+    "file": "/home/michael/Documents/Coursera/Linux-System-Programming-Buildroot/sandbox/src/main.c",
+    "output": "/home/michael/Documents/Coursera/Linux-System-Programming-Buildroot/sandbox/build/main.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-Iinclude",
+      "-O0",
+      "-std=gnu99",
+      "-Wall",
+      "-Wextra",
+      "-g",
+      "-c",
+      "-o",
+      "build/mg_umask.o",
+      "src/mg_umask.c"
+    ],
+    "directory": "/home/michael/Documents/Coursera/Linux-System-Programming-Buildroot/sandbox",
+    "file": "/home/michael/Documents/Coursera/Linux-System-Programming-Buildroot/sandbox/src/mg_umask.c",
+    "output": "/home/michael/Documents/Coursera/Linux-System-Programming-Buildroot/sandbox/build/mg_umask.o"
+  }
+]
