@@ -1,5 +1,9 @@
 #include "systemcalls.h"
+
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -9,27 +13,26 @@
  *   value was returned by the command issued in @param cmd.
  */
 bool do_system(const char *cmd) {
+    /*
+     * Completed:  add your code here
+     *  Call the system() function with the command set in the cmd
+     *   and return a boolean true if the system() call completed with success
+     *   or false() if it returned a failure
+     */
+    if (!cmd || cmd[0] == '\0') {
+        return false;
+    }
 
-  /*
-   * TODO  add your code here
-   *  Call the system() function with the command set in the cmd
-   *   and return a boolean true if the system() call completed with success
-   *   or false() if it returned a failure
-   */
-  if (!cmd || cmd[0] == '\0') {
-    return false;
-  }
+    int result = system(cmd);
 
-  int result = system(cmd);
+    // Based on my interpreation of the instructions, I am only evaluating the
+    // the system() result, not the child exit status.  Per the manual page
+    // for system(), return values of -1  (child could not be created) and
+    // 127 (shell could not be executed in the child process) indicates
+    // failure of the system(). However, they do not describe the state
+    // of the child exit.
 
-  // Based on my interpreation of the instructions, I am only evaluating the
-  // the system() result, not the child exit status.  Per the manual page
-  // for system(), return values of -1  (child could not be created) and
-  // 127 (shell could not be executed in the child process) indicates
-  // failure of the system(). However, they do not describe the state
-  // of the child exit.
-
-  return (result != -1 || result != 127);
+    return (result == -1 || result == 127) ? false : true;
 }
 
 /**
@@ -49,31 +52,57 @@ bool do_system(const char *cmd) {
  */
 
 bool do_exec(int count, ...) {
-  va_list args;
-  va_start(args, count);
-  char *command[count + 1];
-  int i;
-  for (i = 0; i < count; i++) {
-    command[i] = va_arg(args, char *);
-  }
-  command[count] = NULL;
-  // this line is to avoid a compile warning before your implementation is
-  // complete and may be removed
-  command[count] = command[count];
+    va_list args;
+    va_start(args, count);
+    char *command[count + 1];
+    int i;
+    for (i = 0; i < count; i++) {
+        command[i] = va_arg(args, char *);
+    }
+    command[count] = NULL;
+    // this line is to avoid a compile warning before your implementation is
+    // complete and may be removed
+    // command[count] = command[count];
 
-  /*
-   * TODO:
-   *   Execute a system command by calling fork, execv(),
-   *   and wait instead of system (see LSP page 161).
-   *   Use the command[0] as the full path to the command to execute
-   *   (first argument to execv), and use the remaining arguments
-   *   as second argument to the execv() command.
-   *
-   */
+    /*
+     * TODO:
+     *   Execute a system command by calling fork, execv(),
+     *   and wait instead of system (see LSP page 161).
+     *   Use the command[0] as the full path to the command to execute
+     *   (first argument to execv), and use the remaining arguments
+     *   as second argument to the execv() command.
+     *
+     */
 
-  va_end(args);
+    enum { CHILD_PROC = 0 };
+    bool result = false;
 
-  return true;
+    pid_t pid = fork();
+    if (pid < 0) {
+        return false;
+    }
+
+    if (pid == CHILD_PROC) {
+        // exec functions only return if there is an error.  On success
+        // the process is replaced by the process invoked by the exec()
+        // function and the return value is that of command invoked.
+        execv(command[0], command);
+
+        // This only executes if execv failed
+        exit(EXIT_FAILURE);
+    } else {
+        // parent process.
+        // Wait for child status state change.
+        // Per the man page, waitpid() only waits for terminated children
+        // but this can be modified by the options argument. In this case
+        // pass in 0 for opts arg so we have default behavior
+        int child_status;
+        result = waitpid(pid, &child_status, 0 /*opts*/) == -1 ? false : true;
+    }
+
+    va_end(args);
+
+    return result;
 }
 
 /**
@@ -82,27 +111,27 @@ bool do_exec(int count, ...) {
  * All other parameters, see do_exec above
  */
 bool do_exec_redirect(const char *outputfile, int count, ...) {
-  va_list args;
-  va_start(args, count);
-  char *command[count + 1];
-  int i;
-  for (i = 0; i < count; i++) {
-    command[i] = va_arg(args, char *);
-  }
-  command[count] = NULL;
-  // this line is to avoid a compile warning before your implementation is
-  // complete and may be removed
-  command[count] = command[count];
+    va_list args;
+    va_start(args, count);
+    char *command[count + 1];
+    int i;
+    for (i = 0; i < count; i++) {
+        command[i] = va_arg(args, char *);
+    }
+    command[count] = NULL;
+    // this line is to avoid a compile warning before your implementation is
+    // complete and may be removed
+    command[count] = command[count];
 
-  /*
-   * TODO
-   *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624
-   * as a refernce, redirect standard out to a file specified by outputfile. The
-   * rest of the behaviour is same as do_exec()
-   *
-   */
+    /*
+     * TODO
+     *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624
+     * as a refernce, redirect standard out to a file specified by outputfile. The
+     * rest of the behaviour is same as do_exec()
+     *
+     */
 
-  va_end(args);
+    va_end(args);
 
-  return true;
+    return true;
 }
