@@ -1,5 +1,6 @@
 #include "systemcalls.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -65,7 +66,7 @@ bool do_exec(int count, ...) {
     // command[count] = command[count];
 
     /*
-     * TODO:
+     * COMPLETED:
      *   Execute a system command by calling fork, execv(),
      *   and wait instead of system (see LSP page 161).
      *   Use the command[0] as the full path to the command to execute
@@ -88,16 +89,15 @@ bool do_exec(int count, ...) {
         // function and the return value is that of command invoked.
         execv(command[0], command);
 
-        // This only executes if execv failed
+        // This only executes if execv failed.
         exit(EXIT_FAILURE);
     } else {
         // parent process.
-        // Wait for child status state change.
-        // Per the man page, waitpid() only waits for terminated children
-        // but this can be modified by the options argument. In this case
-        // pass in 0 for opts arg so we have default behavior
         int child_status;
-        result = waitpid(pid, &child_status, 0 /*opts*/) == -1 ? false : true;
+        if (waitpid(pid, &child_status, 0) != -1 && WIFEXITED(child_status)) {
+            int exit_code = WEXITSTATUS(child_status);
+            result = exit_code == 0;
+        }
     }
 
     va_end(args);
