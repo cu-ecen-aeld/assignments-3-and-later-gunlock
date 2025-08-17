@@ -1,0 +1,36 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-O0",
+      "-std=gnu99",
+      "-Wall",
+      "-Wextra",
+      "-g",
+      "-c",
+      "-o",
+      "main.o",
+      "main.c"
+    ],
+    "directory": "/home/michael/Documents/Coursera/Linux-System-Programming-Buildroot/assignment-1-gunlock/examples/systemcalls",
+    "file": "/home/michael/Documents/Coursera/Linux-System-Programming-Buildroot/assignment-1-gunlock/examples/systemcalls/main.c",
+    "output": "/home/michael/Documents/Coursera/Linux-System-Programming-Buildroot/assignment-1-gunlock/examples/systemcalls/main.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-O0",
+      "-std=gnu99",
+      "-Wall",
+      "-Wextra",
+      "-g",
+      "-c",
+      "-o",
+      "systemcalls.o",
+      "systemcalls.c"
+    ],
+    "directory": "/home/michael/Documents/Coursera/Linux-System-Programming-Buildroot/assignment-1-gunlock/examples/systemcalls",
+    "file": "/home/michael/Documents/Coursera/Linux-System-Programming-Buildroot/assignment-1-gunlock/examples/systemcalls/systemcalls.c",
+    "output": "/home/michael/Documents/Coursera/Linux-System-Programming-Buildroot/assignment-1-gunlock/examples/systemcalls/systemcalls.o"
+  }
+]
