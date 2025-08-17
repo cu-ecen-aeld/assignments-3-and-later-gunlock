@@ -1,5 +1,6 @@
 #include "systemcalls.h"
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -78,8 +79,10 @@ bool do_exec(int count, ...) {
     enum { CHILD_PROC = 0 };
     bool result = false;
 
+    fflush(stdout);  // prevents duplicate prints
     pid_t pid = fork();
     if (pid < 0) {
+        va_end(args);
         return false;
     }
 
@@ -121,17 +124,49 @@ bool do_exec_redirect(const char *outputfile, int count, ...) {
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is
     // complete and may be removed
-    command[count] = command[count];
+    // command[count] = command[count];
 
     /*
-     * TODO
+     * COMPLETED:
      *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624
      * as a refernce, redirect standard out to a file specified by outputfile. The
      * rest of the behaviour is same as do_exec()
      *
      */
 
+    enum { CHILD_PROC = 0 };
+    bool result = false;
+
+    fflush(stdout);  // prevents duplicate prints
+    pid_t pid = fork();
+    if (pid < 0) {
+        va_end(args);
+        return false;
+    }
+
+    if (pid == CHILD_PROC) {
+        int fd = open(outputfile, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        if (fd < 0) {
+            exit(EXIT_FAILURE);
+        }
+        // redirect stdout to file
+        if (dup2(fd, STDOUT_FILENO) < 0) {
+            close(fd);
+            exit(EXIT_FAILURE);
+        }
+        close(fd);                   // close original fd, stout now point to file
+        execv(command[0], command);  // TODO, handle redirect
+        exit(EXIT_FAILURE);          // only executes if execv fails
+    } else {
+        // parent
+        int child_status;
+        if (waitpid(pid, &child_status, 0) != -1 && WIFEXITED(child_status)) {
+            int exit_code = WEXITSTATUS(child_status);
+            result = exit_code == 0;
+        }
+    }
+
     va_end(args);
 
-    return true;
+    return result;
 }
