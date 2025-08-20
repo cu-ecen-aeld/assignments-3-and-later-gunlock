@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # exit if both arguments are not provided
 if [ $# -lt 2 ]; then
