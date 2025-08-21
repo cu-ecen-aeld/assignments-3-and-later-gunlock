@@ -99,9 +99,15 @@ cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
 
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/busybox" ]; then
-git clone https://git.busybox.net/busybox
+    # git clone https://git.busybox.net/busybox
+    # FIX: Receiving "possible repo corruption on remote side..fatal protocl error - bad pack header"
+    #    Try official repo first and fall back on github mirror if it fails
+    git clone https://git.busybox.net/busybox --depth 1 --single-branch --branch ${BUSYBOX_VERSION} || \
+        git clone https://github.com/mirror/busybox.git busybox
+
     cd busybox
     git checkout ${BUSYBOX_VERSION}
+
     # COMPLETED:  Configure busybox
     make clean
     make defconfig  # generate a default config file (.config)
