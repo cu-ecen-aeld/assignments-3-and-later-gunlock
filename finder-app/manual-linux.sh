@@ -20,8 +20,37 @@ BUSYBOX_VERSION=1_33_1
 FINDER_APP_DIR=$(realpath $(dirname $0))
 ARCH=arm64
 CROSS_COMPILE=aarch64-none-linux-gnu-
-TOOLCHAIN_DIR=/home/michael/toolchains/arm-gnu-toolchain-13.3.rel1-x86_64-aarch64-none-linux-gnu
+
+# FIX: The Github actions runner runs inside a docker image. The toolchain
+#      base directory is different in the docker container. Also, both the docker
+#      container and this local machine have added the toolchain bin path to
+#      $PATH, so the toolchain tools (i.e. readelf) can be invoked without a path
+#      prefix. Therefore, if local machine absolute paths are used in this script
+#      for the toolchain base directory it will fail in the docker image. Given this,
+#      the toolchain base directory should be determined at script runtime by evaluating
+#      the output from 'command -v aarch64-none-linux-gnu-readelf'.  By extracting
+#      the grandparent path and setting that to TOOLCHAIN_DIR, the TOOLCHAIN_SYSROOT
+#      can be built.  This will set up the paths in this script to run properly
+#      whether it runs on the local machine or in the docker container invoked by
+#      the Github Actions runner
+
+# Locate the readelf binary
+READELF_PATH=$(command -v aarch64-none-linux-gnu-readelf)
+if [ -z "$READELF_PATH" ]; then
+    echo "aarch64-none-linux-gnu-readelf not found" >&2
+    exit 1
+fi
+
+TOOLCHAIN_DIR=$(dirname "$(dirname "$READELF_PATH")")
 TOOLCHAIN_SYSROOT=${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc
+
+# Validate the libc (sysroot) exists
+if [ ! -d "$TOOLCHAIN_SYSROOT" ]; then
+    echo "The toolchain sysroot directory (...libc) does not exist" >&2
+    exit 1
+fi
+
+# Store the directory for this script
 SCRIPT_DIR="$PWD"
 
 if [ $# -lt 1 ]
@@ -38,9 +67,8 @@ fi
 
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/linux-stable" ]; then
-    # 
     #Clone only if the repository does not exist.
-	echo "CLONING GIT LINUX STABLE VERSION ${KERNEL_VERSION} IN ${OUTDIR}"
+	echo "Cloning linux stable version ${KERNEL_VERSION} IN ${OUTDIR}"
 	git clone ${KERNEL_REPO} --depth 1 --single-branch --branch ${KERNEL_VERSION}
 fi
 if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
@@ -68,6 +96,13 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
 fi
 
 echo "Adding the Image in outdir"
+# Copy the the ${ARCH} kernel boot image, in this case ARM64.
+# This is the compressed bootable kernel image for the compilation
+# step above.
+if [ -f "${OUTDIR}/Image" ]; then
+    rm "${OUTDIR}/Image"
+fi
+cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
 
 echo "Creating the staging directory for the root filesystem"
 cd "$OUTDIR"
@@ -87,23 +122,13 @@ pushd ${OUTDIR}/rootfs
     mkdir -p home/conf
 popd
 
-# Copy the the ${ARCH} kernel boot image, in this case ARM64.
-# This is the compressed bootable kernel image for the compilation
-# step above.
-if [ -f "${OUTDIR}/Image" ]; then
-    rm "${OUTDIR}/Image"
-fi
-
-# Copy 
-cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
-
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/busybox" ]; then
     # git clone https://git.busybox.net/busybox
-    # FIX: Receiving "possible repo corruption on remote side..fatal protocl error - bad pack header"
+    # FIX: Receiving "possible repo corruption on remote side..fatal protocol error - bad pack header"
     #    Try official repo first and fall back on github mirror if it fails
     git clone https://git.busybox.net/busybox --depth 1 --single-branch --branch ${BUSYBOX_VERSION} || \
-        git clone https://github.com/mirror/busybox.git busybox
+        git clone https://github.com/mirror/busybox.git --depth 1 --single-branch --branch ${BUSYBOX_VERSION}
 
     cd busybox
     git checkout ${BUSYBOX_VERSION}
@@ -128,9 +153,9 @@ popd
 # COMPLETED: Add library dependencies to rootfs
 
 # dependency for busybox program interpreter (i.e. /lib/ld-linux-aarch64.so.1) and shared libs
-BB_DEPS_PROG_INTERPRETER=$(${TOOLCHAIN_DIR}/bin/${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | \
+BB_DEPS_PROG_INTERPRETER=$(${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | \
     grep "program interpreter" | sed 's/.*: \([^]]*\).*/\1/')
-BB_DEPS_SHARED_LIBS=$(${TOOLCHAIN_DIR}/bin/${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | \
+BB_DEPS_SHARED_LIBS=$(${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | \
     grep "Shared library" | sed 's/.*\[\(.*\)\]/\1/')
 
 # copy libs from toolchain sysroot to rootfs for target
