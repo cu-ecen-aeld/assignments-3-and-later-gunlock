@@ -9,11 +9,14 @@
  */
 struct thread_data {
   /*
-   * TODO: add other values your thread will need to manage
+   * COMPLETED: add other values your thread will need to manage
    * into this structure, use this structure to communicate
    * between the start_thread_obtaining_mutex function and
    * your thread implementation.
    */
+  int wait_to_obtain_ms;
+  int wait_to_release_ms;
+  pthread_mutex_t *mutex;
 
   /**
    * Set to true if the thread completed with success, false
@@ -36,6 +39,27 @@ struct thread_data {
  * was started succesfully @param thread should be filled with the
  * pthread_create thread ID coresponding to the thread which was started.
  * @return true if the thread could be started, false if a failure occurred.
+ */
+
+/**
+ *  start_thread_obtaining_mutex():
+ *
+ *  @param thread             Provided by the caller. Use for pthread_create().
+ *  @param mutex              Provided and initialized by caller. Forward to new
+ *                            thread by thread_data struct.
+ *  @param wait_to_obtain_ms  Provided by caller. Forward to new thread by
+ *                            thread_data struct.
+ *  @param wait_to_release_ms Provided by caller. Forward to new thread by
+ *                            thread_data struct.
+ *  @return true on successful thread creation. Otherwise, false.
+ *
+ *  Resource management:
+ *    - Thread resourses: Caller enures no Zombie thread and calls
+ *      pthread_join() either directly or indirectly. Do not call
+ *      pthread_join() in this function per instructions.
+ *    - The thread parameter (thread_data) is allocated on heap.  The caller of
+ *      this function is responsible for freeing that memory
+ *    - The caller is responsible for cleaning up the mutex
  */
 bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,
                                   int wait_to_obtain_ms,
