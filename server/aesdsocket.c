@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 // Uncomment to log to syslog, otherwise, stdout
-// #define LOG_TO_SYSLOG
+#define LOG_TO_SYSLOG
 
 #ifdef LOG_TO_SYSLOG
 #define DEBUG_LOG(msg, ...) syslog(LOG_DEBUG, "Debug | " msg "\n", ##__VA_ARGS__)
