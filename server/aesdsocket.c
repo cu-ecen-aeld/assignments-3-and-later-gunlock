@@ -81,11 +81,11 @@ ssize_t readline(int sockfd, char **line) {
         }
 
         if ((bytes_read = read(sockfd, *line + pos, capacity - pos - 1)) <= 0) {
-            if (0 == pos) {  // nothing read, we have a problem
-                ERROR_LOG("Nothing read from the client socket: %s", strerror(errno));
+            if (bytes_read < 0) {  // error
+                ERROR_LOG("Error reading from client socket: %s", strerror(errno));
                 goto exit;
-            } else {
-                ERROR_LOG("%s", strerror(errno));
+            } else {  // connection closed, bytes_read == 0
+                ERROR_LOG("Client closed connection: %s", strerror(errno));
                 goto exit;
             }
         }
@@ -111,8 +111,7 @@ exit:
 }
 
 int main(int argc, char **argv) {
-    (void)argc;  // unused
-    (void)argv;  // unused
+    bool daemon = (argc == 2) && (strcmp(argv[1], "-d") == 0);
 
     openlog(NULL, 0, LOG_USER);
 
@@ -138,14 +137,6 @@ int main(int argc, char **argv) {
             ERROR_LOG("%s", strerror(errno));
             goto exit;
         }
-    }
-
-    /**
-     * Open output file
-     */
-    if ((outputFile = fopen(OUTPUT_FILE_PATH, "w+")) == NULL) {
-        ERROR_LOG("%s", strerror(errno));
-        goto exit;
     }
 
     /**
@@ -175,11 +166,37 @@ int main(int argc, char **argv) {
     }
     DEBUG_LOG("Socket bind was successful");
 
+    // daemonize after bind
+    if (daemon) {
+        pid_t pid = fork();
+        if (pid < 0) {
+            ERROR_LOG("Fork failed: %s", strerror(errno));
+            goto exit;
+        }
+        if (pid > 0) {  // parent
+            if (sockfd >= 0) {
+                close(sockfd);
+            }
+            exit(0);  // parent exits
+        }
+
+        // child
+        setsid();
+    }
+
     if (listen(sockfd, BACKLOG) == -1) {
         ERROR_LOG("%s", strerror(errno));
         goto exit;
     }
     DEBUG_LOG("Socket listen was successful");
+
+    /**
+     * Open output file
+     */
+    if ((outputFile = fopen(OUTPUT_FILE_PATH, "w+")) == NULL) {
+        ERROR_LOG("%s", strerror(errno));
+        goto exit;
+    }
 
     /**
      * Accept loop
@@ -209,6 +226,7 @@ int main(int argc, char **argv) {
         }
 
         // Append received data to output file
+        fseek(outputFile, 0, SEEK_END);
         size_t len = strlen(buf);
         if (fwrite(buf, sizeof(char), len, outputFile) != len) {
             ERROR_LOG("Failed to write to output file: %s", strerror(errno));
@@ -226,7 +244,7 @@ int main(int argc, char **argv) {
         buf = NULL;
 
         // send back complete contents of the file to the client
-        rewind(outputFile);
+        fseek(outputFile, 0, SEEK_SET);
         char send_buf[SEND_BUF_SIZE];
         size_t bytes_read;
         while ((bytes_read = fread(send_buf, sizeof(char), sizeof(send_buf), outputFile)) > 0) {
