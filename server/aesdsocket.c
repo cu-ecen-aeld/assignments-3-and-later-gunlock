@@ -275,6 +275,8 @@ exit:
     if (g_signal_received) {
         const char *sig = strsignal(g_signal_received);
         DEBUG_LOG("Shutting down. Received %s.", sig != NULL ? sig : "unknown signal number");
+        // Logging this per assignment
+        syslog(LOG_DEBUG, "Caught signal, exiting");
     }
     if (sockfd >= 0)
         close(sockfd);
