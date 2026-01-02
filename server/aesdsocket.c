@@ -1,5 +1,5 @@
 #include <arpa/inet.h>
-#include <errno.h>
+#include <errno.h> // IWYU pragma: keep
 #include <netdb.h>
 #include <signal.h>
 #include <stdbool.h>
