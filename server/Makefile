@@ -10,7 +10,7 @@ VG_FLAGS = --leak-check=full \
 					 --log-file=./valgrind-out.txt
 
 BINARY = aesdsocket
-SRCS = aesdsocket.c
+SRCS = aesdsocket.c list.c
 OBJS = $(SRCS:.c=.o) 
 
 .PHONY: all test memcheck clean
