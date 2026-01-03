@@ -11,3 +11,4 @@ typedef struct node_t {
 node_t* init_node();
 void push_front(node_t** head, node_t* item);
 void free_finished_threads(node_t** head);
+void free_list(node_t** head);
