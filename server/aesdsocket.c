@@ -184,7 +184,7 @@ int main(int argc, char** argv){
         tid_list = tid_item;
       }
     }  // end of new connection block
-  }
+  } // end event loop
 
   // broadcast to all workers to shutdown
   uint32_t val = 1;
@@ -192,7 +192,7 @@ int main(int argc, char** argv){
   DEBUG_LOG("Broadcasting shutdown to worker threads from main thread");
 
   // All threads have been signaled to shutdown...safe to join them 
-  // to cleanup properly
+  // to cleanup properly. This should not hang
   if(tid_list) {
     node_t* cur = tid_list;
     node_t* next = NULL;
