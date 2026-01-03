@@ -36,7 +36,7 @@ struct thread_arg_t {
 #define ERROR_LOG(msg, ...) syslog(LOG_ERR, "Error | " msg "\n", ##__VA_ARGS__)
 #else
 #define DEBUG_LOG(msg, ...) printf("Debug | " msg "\n", ##__VA_ARGS__)
-#define ERROR_LOG(msg, ...) printf("Error | " msg "\n", ##__VA_ARGS__)
+#define ERROR_LOG(msg, ...) fprintf(stderr, "Error | " msg "\n", ##__VA_ARGS__)
 #endif
 
 /*---------------- thread proc  ---------------*/
