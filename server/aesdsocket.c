@@ -140,7 +140,11 @@ int main(int argc, char** argv){
     if(pollfds[0].revents & POLLIN) {
       struct signalfd_siginfo siginfo;
       read(sigfd, &siginfo, sizeof(siginfo));
-      DEBUG_LOG("Received shutdown signal");
+#ifdef LOG_TO_SYSLOG
+      DEBUG_LOG("Recived shutdown signal");
+#else
+      DEBUG_LOG("\nReceived shutdown signal");
+#endif
       break;
     }
 
