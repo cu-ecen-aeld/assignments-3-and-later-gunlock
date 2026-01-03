@@ -7,6 +7,7 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdio.h> // IWYU pragma: keep
 #include <string.h>
 #include <syslog.h>
 #include <sys/eventfd.h>
@@ -29,7 +30,7 @@ struct thread_arg_t {
 } thread_arg_t;
 
 /*-------------- syslog Helpers ---------------*/
-#define LOG_TO_SYSLOG  // undefine to direct to stdout
+// #define LOG_TO_SYSLOG  // undefine to direct to stdout
 #ifdef LOG_TO_SYSLOG
 #define DEBUG_LOG(msg, ...) syslog(LOG_DEBUG, "Debug | " msg "\n", ##__VA_ARGS__)
 #define ERROR_LOG(msg, ...) syslog(LOG_ERR, "Error | " msg "\n", ##__VA_ARGS__)
@@ -68,7 +69,7 @@ int main(int argc, char** argv){
   sigaddset(&mask, SIGTERM);
   // block signals SIGINT and SIGTERM to all
   if(pthread_sigmask(SIG_BLOCK, &mask, NULL) != 0) goto cleanup;
-  if((sigfd = signalfd(-1 /* create fd*/, &mask, SFD_NONBLOCK)) != 0) goto cleanup;
+  if((sigfd = signalfd(-1 /* create fd*/, &mask, SFD_NONBLOCK)) == -1) goto cleanup;
 
   // event file descriptor to broadcast to workers to shutdown
   if((shutdownfd = eventfd(0, EFD_NONBLOCK)) == -1) goto cleanup;
