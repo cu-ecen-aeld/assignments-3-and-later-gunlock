@@ -14,6 +14,7 @@
 #include <sys/signal.h>
 #include <sys/signalfd.h>
 #include <sys/socket.h>
+#include <unistd.h> 
 #include "list.h"
 
 /*---------------- Constants ------------------*/
@@ -42,6 +43,8 @@ struct thread_arg_t {
 /*---------------- thread proc  ---------------*/
 void* thread_proc(void* arg){
   (void)arg;
+  // TODO: complete
+  // TODO: thread_proc must free arg
   return NULL;
 }
 
@@ -150,6 +153,7 @@ int main(int argc, char** argv){
 
     // new connection
     if(pollfds[1].revents & POLLIN){
+      client_sa_len = sizeof(client_sa); // accept4 can reset modify, always reset
       int clientfd = accept4(sockfd, 
                              (struct sockaddr *)&client_sa, 
                              &client_sa_len,
@@ -173,6 +177,14 @@ int main(int argc, char** argv){
       arg->sockfd = clientfd;
       arg->completed = &tid_item->completed;
       pthread_create(&tid_item->tid, NULL, thread_proc, arg);
+      int ret = pthread_create(&tid_item->tid, NULL, thread_proc, arg);
+      if (ret != 0) {
+        ERROR_LOG("pthread_create failed: %s", strerror(ret));
+        free(arg);
+        free(tid_item);
+        close(clientfd);
+        continue;
+      }
       
       // cleanup any threads that are completed
       if(tid_list) free_finished_threads(&tid_list);
