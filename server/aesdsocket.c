@@ -31,7 +31,7 @@ struct thread_arg_t {
 } thread_arg_t;
 
 /*-------------- syslog Helpers ---------------*/
-// #define LOG_TO_SYSLOG  // undefine to direct to stdout
+// #define LOG_TO_SYSLOG  // comment out direct to stdout
 #ifdef LOG_TO_SYSLOG
 #define DEBUG_LOG(msg, ...) syslog(LOG_DEBUG, "Debug | " msg "\n", ##__VA_ARGS__)
 #define ERROR_LOG(msg, ...) syslog(LOG_ERR, "Error | " msg "\n", ##__VA_ARGS__)
@@ -85,7 +85,6 @@ int main(int argc, char** argv){
   };
   struct sockaddr_in client_sa = {0};
   socklen_t client_sa_len = sizeof(client_sa);
-
  
   // open listening socket
   if ((sockfd = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP)) == -1) goto cleanup; 
@@ -143,11 +142,7 @@ int main(int argc, char** argv){
     if(pollfds[0].revents & POLLIN) {
       struct signalfd_siginfo siginfo;
       read(sigfd, &siginfo, sizeof(siginfo));
-#ifdef LOG_TO_SYSLOG
       DEBUG_LOG("Recived shutdown signal");
-#else
-      DEBUG_LOG("\nReceived shutdown signal");
-#endif
       break;
     }
 
@@ -204,7 +199,7 @@ int main(int argc, char** argv){
   DEBUG_LOG("Broadcasting shutdown to worker threads from main thread");
 
   // All threads have been signaled to shutdown...safe to join them 
-  // to cleanup properly. This should not hang
+  // to cleanup properly. This should not hang.
   if(tid_list) {
     node_t* cur = tid_list;
     node_t* next = NULL;
@@ -216,7 +211,7 @@ int main(int argc, char** argv){
   }
 
   // free thread id list
-  free_list(&tid_list);
+  if (tid_list) free_list(&tid_list);
 
   // success if here, set return code
   DEBUG_LOG("Shutting down server");
