@@ -39,6 +39,21 @@ void free_finished_threads(node_t** head) {
   }
 }
 
+void free_all_threads(node_t **head) {
+  if(head == NULL || *head == NULL) {
+    return;
+  }
+  
+  node_t** indirect = head;
+
+  while(*indirect != NULL) {
+    node_t* current = *indirect;
+    *indirect = current->next;
+    free(current);
+    current = NULL;
+  }
+}
+
 void free_list(node_t** head) {
   if(head == NULL || *head == NULL)
     return;
