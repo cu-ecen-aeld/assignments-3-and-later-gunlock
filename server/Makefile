@@ -10,8 +10,9 @@ VG_FLAGS = --leak-check=full \
 					 --log-file=./valgrind-out.txt
 
 BINARY = aesdsocket
-SRCS = aesdsocket.c list.c
-OBJS = $(SRCS:.c=.o) 
+SRCS = aesdsocket.c list.c worker.c
+HEADERS = list.h worker.h utility.h
+OBJS = $(SRCS:.c=.o)
 
 .PHONY: all test memcheck clean
 
@@ -20,8 +21,8 @@ all: $(BINARY)
 $(BINARY): $(OBJS)
 	$(CC) $(OBJS) -o $(BINARY) $(LDFLAGS)
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $^
+%.o: %.c $(HEADERS)
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 test:
 	@"./$(BINARY)"
