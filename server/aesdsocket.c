@@ -7,15 +7,17 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <stdio.h> // IWYU pragma: keep
 #include <string.h>
 #include <syslog.h>
 #include <sys/eventfd.h>
 #include <sys/signal.h>
 #include <sys/signalfd.h>
 #include <sys/socket.h>
-#include <unistd.h> 
+#include <sys/timerfd.h>
+#include <unistd.h>
+#include "worker.h"
 #include "list.h"
+#include "utility.h"
 
 /*---------------- Constants ------------------*/
 const char* OUTPUT_FILE_PATH = "/var/tmp/aesdsocketdata";
@@ -23,38 +25,15 @@ const int BACKLOG = 5;
 const int AESD_PORT = 9000;
 const int SEND_BUF_SIZE = 1024;
 
-/*---------------- Thread Args  ---------------*/
-struct thread_arg_t {
-  int sockfd;
-  int shutdownfd;
-  atomic_int* completed;
-} thread_arg_t;
-
-/*-------------- syslog Helpers ---------------*/
-// #define LOG_TO_SYSLOG  // comment out direct to stdout
-#ifdef LOG_TO_SYSLOG
-#define DEBUG_LOG(msg, ...) syslog(LOG_DEBUG, "Debug | " msg "\n", ##__VA_ARGS__)
-#define ERROR_LOG(msg, ...) syslog(LOG_ERR, "Error | " msg "\n", ##__VA_ARGS__)
-#else
-#define DEBUG_LOG(msg, ...) printf("Debug | " msg "\n", ##__VA_ARGS__)
-#define ERROR_LOG(msg, ...) fprintf(stderr, "Error | " msg "\n", ##__VA_ARGS__)
-#endif
-
-/*---------------- thread proc  ---------------*/
-void* thread_proc(void* arg){
-  (void)arg;
-  // TODO: complete
-  // TODO: thread_proc must free arg
-  return NULL;
-}
-
-
 int main(int argc, char** argv){
   
   int ret_val = EXIT_FAILURE;
   int sigfd = -1;      // file descriptor accepting signals
   int sockfd = -1;     // socket
   int shutdownfd = -1; // to signal worker threads to shutdown
+  int timerfd = -1;    // timer file descriptor
+  FILE* outfile = NULL;      // OUTPUT_FILE_PATH:  /var/tmp/aesdsocketdata"
+  pthread_mutex_t outfd_lock = PTHREAD_MUTEX_INITIALIZER;
   
   // parse args
   bool daemon = false;
@@ -65,17 +44,11 @@ int main(int argc, char** argv){
   // open syslog
   openlog(NULL, 0, LOG_USER);
 
-  // setup signal file descriptor for accepting SIGINT and SIGTERM signals
-  sigset_t mask;
-  sigemptyset(&mask);
-  sigaddset(&mask, SIGINT);
-  sigaddset(&mask, SIGTERM);
-  // block signals SIGINT and SIGTERM to all
-  if(pthread_sigmask(SIG_BLOCK, &mask, NULL) != 0) goto cleanup;
-  if((sigfd = signalfd(-1 /* create fd*/, &mask, SFD_NONBLOCK)) == -1) goto cleanup;
-
-  // event file descriptor to broadcast to workers to shutdown
-  if((shutdownfd = eventfd(0, EFD_NONBLOCK)) == -1) goto cleanup;
+  // open output file
+  if ((outfile = fopen(OUTPUT_FILE_PATH, "w+")) == NULL) {
+    ERROR_LOG("%s", strerror(errno));
+    goto cleanup;
+  }
 
   // vars for socket
   struct sockaddr_in sa = {
@@ -84,7 +57,7 @@ int main(int argc, char** argv){
     .sin_addr.s_addr = htonl(INADDR_ANY)
   };
   struct sockaddr_in client_sa = {0};
-  socklen_t client_sa_len = sizeof(client_sa);
+  socklen_t client_sa_len;
  
   // open listening socket
   if ((sockfd = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP)) == -1) goto cleanup; 
@@ -109,18 +82,38 @@ int main(int argc, char** argv){
     // in child
     setsid();
   }
+  // setup signal file descriptor for accepting SIGINT and SIGTERM signals
+  sigset_t mask;
+  sigemptyset(&mask);
+  sigaddset(&mask, SIGINT);
+  sigaddset(&mask, SIGTERM);
+  // block signals SIGINT and SIGTERM to all
+  if(pthread_sigmask(SIG_BLOCK, &mask, NULL) != 0) goto cleanup;
+  if((sigfd = signalfd(-1 /* create fd*/, &mask, SFD_NONBLOCK)) == -1) goto cleanup;
+
+  // event file descriptor to broadcast to workers to shutdown
+  if((shutdownfd = eventfd(0, EFD_NONBLOCK)) == -1) goto cleanup;
+
+  // setup timer
+  timerfd = timerfd_create(CLOCK_REALTIME, 0);
+  struct itimerspec its = {
+    .it_value = {10, 0},    // initial start in 10s
+    .it_interval = {10, 0}  // repeat q 10s
+  };
+  timerfd_settime(timerfd, 0, &its, NULL);
+
+  // setup pollfd array for file descriptors to poll
+  enum { POLLFD_SIZE = 3};
+  struct pollfd pollfds [POLLFD_SIZE] = {
+    [0] = { .fd = sigfd,   .events = POLLIN},
+    [1] = { .fd = sockfd,  .events = POLLIN},
+    [2] = { .fd = timerfd, .events = POLLIN}
+  };
   
   // listen
   if (listen(sockfd, BACKLOG) == -1) goto cleanup;
   DEBUG_LOG("Server started on port %d", AESD_PORT);
-
-  // setup pollfd array for file descriptors to poll
-  enum { POLLFD_SIZE = 2};
-  struct pollfd pollfds [POLLFD_SIZE] = {
-    [0] = { .fd = sigfd,  .events = POLLIN},
-    [1] = { .fd = sockfd, .events = POLLIN}
-  };
-
+  
   // create list to hold thread ids
   node_t* tid_list = NULL;
 
@@ -129,21 +122,37 @@ int main(int argc, char** argv){
 
     // start polling
     int poll_ret_val = poll(pollfds, POLLFD_SIZE, -1 /* infinite timeout */);
-    
-    // check for poll() error 
-    if(poll_ret_val == -1) { 
-      if(errno == EINTR){
-        continue;
-      } 
+
+    // check for EINTR
+    if(poll_ret_val == -1 && errno == EINTR) continue;
+
+    // check for fatal error
+    if(poll_ret_val == -1) {
+      ERROR_LOG("Server poll() error. %s", strerror(errno));
       break;
     }
 
-    // check for signal
+    // check for SIGINT SIGTERM signals 
     if(pollfds[0].revents & POLLIN) {
       struct signalfd_siginfo siginfo;
       read(sigfd, &siginfo, sizeof(siginfo));
       DEBUG_LOG("Recived shutdown signal");
       break;
+    }
+
+    // check for timer event
+    if(pollfds[2].revents & POLLIN) {
+      uint64_t exps; // expirations since last read
+      read(timerfd, &exps, sizeof(exps));
+
+      // RFC 2822 timestamp
+      time_t now = time(NULL);
+      struct tm* tmp = localtime(&now);
+      char ts_str[100] = {0};
+      strftime(ts_str, sizeof(ts_str), "%a, %d %b %Y %H:%M:%S %z", tmp);
+      pthread_mutex_lock(&outfd_lock);
+      fprintf(outfile, "timestamp:%s\n", ts_str);
+      pthread_mutex_unlock(&outfd_lock);
     }
 
     // new connection
@@ -171,7 +180,8 @@ int main(int argc, char** argv){
       arg->shutdownfd = shutdownfd;
       arg->sockfd = clientfd;
       arg->completed = &tid_item->completed;
-      pthread_create(&tid_item->tid, NULL, thread_proc, arg);
+      arg->outfile = outfile;
+      arg->lock = &outfd_lock;
       int ret = pthread_create(&tid_item->tid, NULL, thread_proc, arg);
       if (ret != 0) {
         ERROR_LOG("pthread_create failed: %s", strerror(ret));
@@ -199,21 +209,9 @@ int main(int argc, char** argv){
   DEBUG_LOG("Broadcasting shutdown to worker threads from main thread");
 
   // All threads have been signaled to shutdown...safe to join them 
-  // to cleanup properly. This should not hang.
-  if(tid_list) {
-    node_t* cur = tid_list;
-    node_t* next = NULL;
-    while(cur != NULL) {
-      next = cur->next;
-      pthread_join(cur->tid, NULL);
-      cur = next;
-    }
-  }
+  // to cleanup properly. This should not hang. All list nodes deleted
+  free_all_threads(&tid_list);
 
-  // free thread id list
-  if (tid_list) free_list(&tid_list);
-
-  // success if here, set return code
   DEBUG_LOG("Shutting down server");
   ret_val = EXIT_SUCCESS;
 
@@ -225,6 +223,7 @@ int main(int argc, char** argv){
     if(sigfd != -1) close(sigfd);
     if(sockfd != -1) close(sockfd);
     if(shutdownfd != -1) close(shutdownfd);
+    if(outfile) fclose(outfile);
     closelog(); 
 
     return ret_val; 
