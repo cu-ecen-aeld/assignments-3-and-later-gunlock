@@ -1,8 +1,7 @@
 
-CC=$(CROSS_COMPILE)gcc
-OPT=-O0
-CFLAGS=-Wall -Wextra -g $(OPT)
-LDFLAGS = -pthread
+CC ?= $(CROSS_COMPILE)gcc
+CFLAGS ?=-Wall -Wextra -g -O0
+LDFLAGS ?= -pthread
 VG_FLAGS = --leak-check=full \
 					 --show-leak-kinds=all \
 					 --track-origins=yes \
